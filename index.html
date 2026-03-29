@@ -10,9 +10,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;900&display=swap');
-        body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Pretendard', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        textarea::placeholder { opacity: 1; }
+        textarea::placeholder { opacity: 1; color: #64748b; font-weight: 900; }
         /* Sticky header and left column */
         thead th { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; }
         .sticky-col { position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #e2e8f0; }
@@ -49,11 +49,11 @@
             ];
             
             const savedLessons = JSON.parse(localStorage.getItem('lessons')) || [
-                { id: 1, name: '변성암', data: Array(10).fill(null).map(() => ({ checked: false, note: '' })) },
-                { id: 2, name: '암석의 순환', data: Array(10).fill(null).map(() => ({ checked: false, note: '' })) },
-                { id: 3, name: '풍화와 토양', data: Array(10).fill(null).map(() => ({ checked: false, note: '' })) },
-                { id: 4, name: '움직이는 대륙', data: Array(10).fill(null).map(() => ({ checked: false, note: '' })) },
-                { id: 5, name: '판', data: Array(10).fill(null).map(() => ({ checked: false, note: '' })) },
+                { id: 1, name: '변성암', data: Array(10).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                { id: 2, name: '암석의 순환', data: Array(10).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                { id: 3, name: '풍화와 토양', data: Array(10).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                { id: 4, name: '움직이는 대륙', data: Array(10).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                { id: 5, name: '판', data: Array(10).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
             ];
 
             const [classes, setClasses] = useState(savedClasses);
@@ -68,7 +68,9 @@
 
             const toggleCheck = (lIdx, cIdx) => {
                 const updated = [...lessons];
-                updated[lIdx].data[cIdx].checked = !updated[lIdx].data[cIdx].checked;
+                const target = updated[lIdx].data[cIdx];
+                target.checked = !target.checked;
+                target.completedAt = target.checked ? Date.now() : null;
                 setLessons(updated);
             };
 
@@ -88,7 +90,7 @@
                 const newId = lessons.length > 0 ? Math.max(...lessons.map(l => l.id)) + 1 : 1;
                 setLessons([...lessons, {
                     id: newId, name: `새 차시 ${newId}`,
-                    data: Array(20).fill(null).map(() => ({ checked: false, note: '' }))
+                    data: Array(20).fill(null).map(() => ({ checked: false, note: '', completedAt: null }))
                 }]);
             };
 
@@ -106,17 +108,45 @@
             const getPlaceholder = (lIdx, cIdx) => {
                 const classInfo = classes[cIdx];
                 if (!classInfo || !classInfo.days.some(d => d)) return "";
+                
+                // 해당 반의 첫 번째 미완료 차시 인덱스
                 const firstUncheckedIdx = lessons.findIndex(l => !l.data[cIdx]?.checked);
-                if (!lessons[lIdx].data[cIdx]?.checked && lIdx >= firstUncheckedIdx && lIdx < firstUncheckedIdx + 4) {
-                    const activeDays = classInfo.days.map((d, i) => d ? DAYS_MAP[i] : null).filter(Boolean);
-                    return `${activeDays[lIdx % activeDays.length]}`;
+                if (lIdx < firstUncheckedIdx || lIdx >= firstUncheckedIdx + 4) return "";
+                if (lessons[lIdx].data[cIdx]?.checked) return "";
+
+                // 기준 시점 찾기 (마지막 완료 시각 또는 현재 시각)
+                let baseDate = new Date();
+                const completedTimes = lessons
+                    .map(l => l.data[cIdx]?.completedAt)
+                    .filter(t => t !== null);
+                
+                if (completedTimes.length > 0) {
+                    baseDate = new Date(Math.max(...completedTimes));
                 }
-                return "";
+
+                const activeDayIndices = classInfo.days.map((d, i) => d ? i : null).filter(n => n !== null);
+                
+                // baseDate 이후 n번째 수업 요일 찾기
+                const getNextSessionDay = (base, offset) => {
+                    let date = new Date(base);
+                    let count = 0;
+                    while (count <= offset) {
+                        date.setDate(date.getDate() + 1);
+                        let dayIdx = date.getDay(); // 0(일) ~ 6(토)
+                        let mapIdx = dayIdx === 0 ? 6 : dayIdx - 1; // 월0~일6
+                        if (mapIdx < 5 && classInfo.days[mapIdx]) {
+                            count++;
+                        }
+                    }
+                    return DAYS_MAP[date.getDay() === 0 ? 6 : date.getDay() - 1];
+                };
+
+                return getNextSessionDay(baseDate, lIdx - firstUncheckedIdx);
             };
 
             if (isSettingsOpen) {
                 return (
-                    <div className="min-h-screen bg-white p-4 animate-in slide-in-from-right duration-300 font-sans">
+                    <div className="h-screen bg-white p-4 animate-in slide-in-from-right duration-300 font-sans overflow-auto">
                         <div className="max-w-md mx-auto space-y-6">
                             <div className="flex items-center justify-between border-b pb-4">
                                 <div className="flex items-center gap-3">
@@ -154,8 +184,8 @@
             }
 
             return (
-                <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
-                    <header className="sticky top-0 z-40 bg-white p-4 shadow-sm border-b flex items-center justify-between">
+                <div className="h-screen bg-slate-50 font-sans flex flex-col">
+                    <header className="flex-none bg-white p-4 shadow-sm border-b flex items-center justify-between z-40">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-600 rounded-lg shadow-blue-200 shadow-lg flex items-center justify-center">
                                 <Icon name="check-circle-2" className="text-white" size={24} />
@@ -172,7 +202,7 @@
 
                     <div className="flex-1 overflow-auto no-scrollbar relative">
                         <table className="w-full border-collapse table-fixed min-w-full">
-                            <thead className="sticky top-0 z-30 shadow-sm">
+                            <thead className="z-30">
                                 <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase">
                                     <th className="p-2 w-28 text-left sticky-col border-r">차시명</th>
                                     {classes.map(c => (
@@ -188,7 +218,7 @@
                                         <tr key={lesson.id} className={`${allDone ? 'bg-slate-50 grayscale opacity-40' : 'bg-white'}`}>
                                             <td className="p-1 border-r sticky-col group">
                                                 <div className="flex items-center px-0.5">
-                                                    <input type="text" value={lesson.name} onChange={(e) => updateLessonName(lIdx, e.target.value)} className="w-full bg-transparent p-1 text-[11px] font-bold outline-none border border-transparent focus:border-blue-200 rounded text-center whitespace-normal break-words" />
+                                                    <input type="text" value={lesson.name} onChange={(e) => updateLessonName(lIdx, e.target.value)} className="w-full bg-transparent p-1 text-[13px] font-bold outline-none border border-transparent focus:border-blue-200 rounded text-center whitespace-normal break-words" />
                                                     <button onClick={() => removeLesson(lesson.id)} className="opacity-0 group-hover:opacity-100 p-1 text-slate-300"><Icon name="trash-2" size={10} /></button>
                                                 </div>
                                             </td>
@@ -203,7 +233,7 @@
                                                             <textarea 
                                                                 value={lesson.data[cIdx]?.note || ''} 
                                                                 onChange={(e) => updateNote(lIdx, cIdx, e.target.value)}
-                                                                className="w-full h-10 p-1 pl-4 bg-white/50 border border-slate-100 rounded text-[10px] outline-none resize-none leading-tight placeholder:text-slate-500 placeholder:font-bold placeholder:text-xs text-center font-bold"
+                                                                className="w-full h-10 p-1 pl-4 bg-white/50 border border-slate-100 rounded text-[10px] outline-none resize-none leading-tight text-center font-bold"
                                                                 placeholder={getPlaceholder(lIdx, cIdx)}
                                                             />
                                                         </div>
