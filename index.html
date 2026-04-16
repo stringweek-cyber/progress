@@ -17,6 +17,7 @@
         .sticky-col { position: sticky; left: 0; z-index: 10; background-color: white; border-right: 1px solid #e2e8f0; }
         thead th.sticky-col { z-index: 30; background-color: #f1f5f9; }
         .section-header th { position: sticky; top: 33px; z-index: 25; }
+        .lesson-hidden td { opacity: 0.45; }
     </style>
 </head>
 <body class="bg-slate-50">
@@ -51,9 +52,9 @@
         ];
 
         const makeEmptyLessons = (classCount) => [
-            { id: 1, name: '차시 1', data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-            { id: 2, name: '차시 2', data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-            { id: 3, name: '차시 3', data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+            { id: 1, name: '차시 1', hidden: false, data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+            { id: 2, name: '차시 2', hidden: false, data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+            { id: 3, name: '차시 3', hidden: false, data: Array(classCount).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
         ];
 
         const defaultSections = [
@@ -62,11 +63,11 @@
                 title: '진도표 1',
                 showCompleted: false,
                 lessons: [
-                    { id: 1, name: '변성암', data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-                    { id: 2, name: '암석의 순환', data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-                    { id: 3, name: '풍화와 토양', data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-                    { id: 4, name: '움직이는 대륙', data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
-                    { id: 5, name: '판', data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                    { id: 1, name: '변성암',      hidden: false, data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                    { id: 2, name: '암석의 순환',  hidden: false, data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                    { id: 3, name: '풍화와 토양',  hidden: false, data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                    { id: 4, name: '움직이는 대륙',hidden: false, data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
+                    { id: 5, name: '판',           hidden: false, data: Array(4).fill(null).map(() => ({ checked: false, note: '', completedAt: null })) },
                 ],
             },
         ];
@@ -86,14 +87,11 @@
             };
 
             const toggleCheck = (lIdx, cIdx) => {
-                updateLesson(prev => {
-                    const updated = prev.map((l, li) => li === lIdx ? {
-                        ...l, data: l.data.map((d, ci) => ci === cIdx
-                            ? { ...d, checked: !d.checked, completedAt: !d.checked ? Date.now() : null }
-                            : d)
-                    } : l);
-                    return updated;
-                });
+                updateLesson(prev => prev.map((l, li) => li === lIdx ? {
+                    ...l, data: l.data.map((d, ci) => ci === cIdx
+                        ? { ...d, checked: !d.checked, completedAt: !d.checked ? Date.now() : null }
+                        : d)
+                } : l));
             };
 
             const updateNote = (lIdx, cIdx, text) => {
@@ -106,11 +104,16 @@
                 updateLesson(prev => prev.map((l, li) => li === idx ? { ...l, name: newName } : l));
             };
 
+            // ✅ 차시 개별 숨김 토글
+            const toggleLessonHidden = (lIdx) => {
+                updateLesson(prev => prev.map((l, li) => li === lIdx ? { ...l, hidden: !l.hidden } : l));
+            };
+
             const addLesson = () => {
                 updateLesson(prev => {
                     const newId = prev.length > 0 ? Math.max(...prev.map(l => l.id)) + 1 : 1;
                     return [...prev, {
-                        id: newId, name: `차시 ${newId}`,
+                        id: newId, name: `차시 ${newId}`, hidden: false,
                         data: Array(classes.length).fill(null).map(() => ({ checked: false, note: '', completedAt: null }))
                     }];
                 });
@@ -118,17 +121,16 @@
 
             const removeLesson = (id) => updateLesson(prev => prev.filter(l => l.id !== id));
 
-            // 모든 반이 완료한 경우
             const isAllChecked = (idx) => lessons[idx].data.slice(0, classes.length).every(d => d.checked);
 
-            // ✅ 수정: 모든 반 완료 시 숨김, showCompleted 토글로만 표시
             const shouldShowRow = (idx) => {
                 if (showCompleted) return true;
                 return !isAllChecked(idx);
             };
 
-            // 완료된 차시 개수
             const completedCount = lessons.filter((_, idx) => isAllChecked(idx)).length;
+            // ✅ 숨겨진 차시 개수 (완료 자동숨김과 별개)
+            const hiddenCount = lessons.filter(l => l.hidden).length;
 
             const getPlaceholder = (lIdx, cIdx) => {
                 const classInfo = classes[cIdx];
@@ -155,8 +157,6 @@
 
             const toggleShowCompleted = () => onUpdate({ ...section, showCompleted: !showCompleted });
 
-            const accentColor = isFirst ? 'blue' : 'red';
-
             return (
                 <div className="mb-0">
                     <table className="w-full border-collapse table-fixed min-w-full">
@@ -165,7 +165,6 @@
                                 <th className={`p-2 w-28 text-left sticky-col border-r ${isFirst ? '' : 'bg-red-50'}`}>
                                     <div className="flex items-center gap-1">
                                         <span>차시명</span>
-                                        {/* 완료 숨김/표시 토글 버튼 - 완료된 차시 개수 배지 포함 */}
                                         <button
                                             onClick={toggleShowCompleted}
                                             className={`ml-auto flex items-center gap-0.5 px-1.5 py-1 rounded border transition-colors ${
@@ -193,12 +192,49 @@
                         <tbody className="divide-y divide-slate-100">
                             {lessons.map((lesson, lIdx) => {
                                 if (!shouldShowRow(lIdx)) return null;
+
+                                // ✅ 숨겨진 차시: 이름 행만 좁게 표시, 데이터 셀은 빈 상태로
+                                if (lesson.hidden) {
+                                    return (
+                                        <tr key={lesson.id} className="bg-slate-50/60 border-b border-slate-100">
+                                            <td className="p-1 border-r sticky-col" style={{backgroundColor: '#f8fafc'}}>
+                                                <div className="flex items-center gap-1 px-1">
+                                                    <span className="text-[11px] font-bold text-slate-400 flex-1 truncate text-center line-through">{lesson.name}</span>
+                                                    <button
+                                                        onClick={() => toggleLessonHidden(lIdx)}
+                                                        className={`p-1 rounded border flex-shrink-0 ${isFirst ? 'bg-blue-600 border-blue-600 text-white' : 'bg-red-500 border-red-500 text-white'}`}
+                                                        title="차시 표시"
+                                                    >
+                                                        <Icon name="eye" size={10} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            {classes.map((_, cIdx) => (
+                                                <td key={cIdx} className="border-r last:border-r-0 bg-slate-50/60" />
+                                            ))}
+                                        </tr>
+                                    );
+                                }
+
                                 return (
                                     <tr key={lesson.id} className="bg-white">
                                         <td className="p-1 border-r sticky-col group">
-                                            <div className="flex items-center px-0.5">
-                                                <input type="text" value={lesson.name} onChange={(e) => updateLessonName(lIdx, e.target.value)} className="w-full bg-transparent p-1 text-[13px] font-bold outline-none border border-transparent focus:border-blue-200 rounded text-center whitespace-normal break-words" />
-                                                <button onClick={() => removeLesson(lesson.id)} className="opacity-0 group-hover:opacity-100 p-1 text-slate-300"><Icon name="trash-2" size={10} /></button>
+                                            <div className="flex items-center px-0.5 gap-1">
+                                                <input
+                                                    type="text"
+                                                    value={lesson.name}
+                                                    onChange={(e) => updateLessonName(lIdx, e.target.value)}
+                                                    className="flex-1 min-w-0 bg-transparent p-1 text-[13px] font-bold outline-none border border-transparent focus:border-blue-200 rounded text-center"
+                                                />
+                                                {/* ✅ 차시별 숨김 버튼 - 항상 표시 */}
+                                                <button
+                                                    onClick={() => toggleLessonHidden(lIdx)}
+                                                    className="flex-shrink-0 p-1 rounded border border-slate-200 bg-white text-slate-300 hover:text-slate-500 hover:border-slate-300 transition-colors"
+                                                    title="이 차시 숨기기"
+                                                >
+                                                    <Icon name="eye-off" size={10} />
+                                                </button>
+                                                <button onClick={() => removeLesson(lesson.id)} className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-1 text-slate-300"><Icon name="trash-2" size={10} /></button>
                                             </div>
                                         </td>
                                         {classes.map((_, cIdx) => (
